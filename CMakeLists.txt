@@ -44,6 +44,7 @@ add_subdirectory(cmake/stm32cubemx)
 
 # Add user defined sources
 add_subdirectory(libs)
+add_subdirectory(src)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
