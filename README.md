@@ -9,13 +9,14 @@
 
 ### 使用的硬件
 
-- 达妙 stm32h7 板
+- 达妙 stm32h7 单片机，串口转rs485单片机载板
 
 - 关节电机为宇树a1电机，轮毂电机为宇树Go-8010电机
 
 ### 安装依赖
 
 - Cubemx 版本 6.12.0
+- **注意事项 ：工程根目录下的 STM32H723VGTx_FLASH.ld 文件会被 Cubemx 的 GENERATE CODE 操作覆盖，若使用 Cubemx 重新生成代码，需手动修改 STM32H723VGTx_FLASH.ld 文件**
 
 ### 一些说明
 
