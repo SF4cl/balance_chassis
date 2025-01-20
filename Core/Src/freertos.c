@@ -203,9 +203,6 @@ void imu_task_entry(void *argument)
   static float imu_start;
   static float imu_dt;
 
-  TickType_t xImuTime;
-  const TickType_t xDelay1ms = pdMS_TO_TICKS( 1 );
-
   ImuInit();
   /* Infinite loop */
   for(;;)
@@ -218,9 +215,9 @@ void imu_task_entry(void *argument)
 
     htim3.Instance->CCR4 = pwm_out;
 
-    imu_dt = DWT_GetTimeline_ms() - imu_start;
+    vTaskDelay(2);
 
-    vTaskDelayUntil( &xImuTime, xDelay1ms );
+    imu_dt = DWT_GetTimeline_ms() - imu_start;
   }
   /* USER CODE END imu_task_entry */
 }
@@ -238,19 +235,21 @@ void chassis_task_entry(void *argument)
   static float chassis_start;
   static float chassis_dt;
 
-  TickType_t xChassisTime;
-  const TickType_t xDelay1ms = pdMS_TO_TICKS( 1 );
-
   ChassisInit();
   /* Infinite loop */
   for(;;)
   {
-    
     chassis_start = DWT_GetTimeline_ms();
-    ChassisUpdate();
-    chassis_dt = DWT_GetTimeline_ms() - chassis_start;
 
-    vTaskDelayUntil( &xChassisTime, xDelay1ms );
+    vTaskSuspendAll();
+    
+    ChassisUpdate();
+    
+    xTaskResumeAll();
+
+    vTaskDelay(2);
+
+    chassis_dt = DWT_GetTimeline_ms() - chassis_start;
   }
   /* USER CODE END chassis_task_entry */
 }
@@ -269,8 +268,7 @@ void remote_task_entry(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    
-    osDelay(2);
+    vTaskDelay(2);
   }
   /* USER CODE END remote_task_entry */
 }
