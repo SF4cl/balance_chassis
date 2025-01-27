@@ -2,8 +2,9 @@
 #include "chassis_task.hpp"
 
 #include <usart.h>
+#include <cstdint>
 #include "bsp_dwt.h"
-#include "cmsis_os2.h"
+#include "imu_task.h"
 
 using namespace rm;
 using namespace rm::device;
@@ -24,33 +25,39 @@ static UnitreeMotor *rb_joint;
 static Go8010Motor *left_wheel;
 static Go8010Motor *right_wheel;
 
-extern MahonyAhrs *mahony_ahrs;
 extern BMI088 *imu;
 
 static Serial *remote_uart;
 static DR16 *remote;
 
-static FirstOrderFilter left_wheel_vel_filter(1.f / 1000.f, 0.02f);
-static FirstOrderFilter right_wheel_vel_filter(1.f / 1000.f, 0.02f);
+static FirstOrderFilter left_wheel_vel_filter(1.f / 500.f, 0.04f);
+static FirstOrderFilter right_wheel_vel_filter(1.f / 500.f, 0.04f);
+
+static PID *wheel_stand_pid;
+static PID *wheel_speed_pid;
+
+static int count = 0;
+
+f32 x_target_pre = 0.f;
 
 Chassis::Chassis()
     : left_leg_vmc_(0.12f, 0.25f, 0.15f),
       right_leg_vmc_(0.12f, 0.25f, 0.15f),
-      left_l0_pid_(1200.f, 0.001f, 10000.f, 360.f, 80.f),
-      right_l0_pid_(1200.f, 0.001f, 10000.f, 360.f, 80.f),
-      left_turn_pid_(2.8f, 0.0f, 3.f, 10.f, 0.f),
-      right_turn_pid_(2.8f, 0.0f, 3.f, 10.f, 0.f),
-      lf_pos_filter_(1.f / 1000.f, 0.007f),
-      lb_pos_filter_(1.f / 1000.f, 0.007f),
-      rf_pos_filter_(1.f / 1000.f, 0.007f),
-      rb_pos_filter_(1.f / 1000.f, 0.007f),
-      lf_spd_filter_(1.f / 1000.f, 0.005f),
-      lb_spd_filter_(1.f / 1000.f, 0.005f),
-      rf_spd_filter_(1.f / 1000.f, 0.005f),
-      rb_spd_filter_(1.f / 1000.f, 0.005f),
-      pitch_filter_(1.f / 1000.f, 0.002f),
-      pitch_dot_filter_(1.f / 1000.f, 0.008f),
-      yaw_dot_filter_(1.f / 1000.f, 0.06f) {
+      left_l0_pid_(1500.f, 400.f, 20000.f, 360.f, 100.f),
+      right_l0_pid_(1500.f, 400.f, 20000.f, 360.f, 100.f),
+      left_turn_pid_(10.f, 0.0f, 6.f, 10.f, 0.f),
+      right_turn_pid_(10.f, 0.0f, 6.f, 10.f, 0.f),
+      lf_pos_filter_(1.f / 500.f, 0.007f),
+      lb_pos_filter_(1.f / 500.f, 0.007f),
+      rf_pos_filter_(1.f / 500.f, 0.007f),
+      rb_pos_filter_(1.f / 500.f, 0.007f),
+      lf_spd_filter_(1.f / 500.f, 0.005f),
+      lb_spd_filter_(1.f / 500.f, 0.005f),
+      rf_spd_filter_(1.f / 500.f, 0.005f),
+      rb_spd_filter_(1.f / 500.f, 0.005f),
+      pitch_filter_(1.f / 500.f, 0.002f),
+      pitch_dot_filter_(1.f / 500.f, 0.02f),
+      yaw_dot_filter_(1.f / 500.f, 0.06f) {
   x_ = 0.0f;
   x_dot_ = 0.0f;
 
@@ -134,31 +141,19 @@ void Chassis::CalcTau() {
                     CalcPoly(right_leg_vmc_.l0(), 1, 4) * pitch_ + CalcPoly(right_leg_vmc_.l0(), 1, 5) * pitch_dot_) -
                   (right_theta_ - left_theta_) * theta_kp + (right_theta_dot_ - left_theta_dot_) * theta_kd;
 
-  // left_tau_(0) = -(CalcPoly(l0_target_, 0, 0) * left_theta_ + CalcPoly(l0_target_, 0, 1) * left_theta_dot_ +
-  //                 //  CalcPoly(l0_target_, 0, 2) * (x_ - x_target_) + CalcPoly(l0_target_, 0, 3) * x_dot_ +
-  //                  CalcPoly(l0_target_, 0, 4) * pitch_ + CalcPoly(l0_target_, 0, 5) * pitch_dot_);
-  // left_tau_(1) = -(CalcPoly(l0_target_, 1, 0) * left_theta_ + CalcPoly(l0_target_, 1, 1) * left_theta_dot_ +
-  //                 //  CalcPoly(l0_target_, 1, 2) * (x_ - x_target_) + CalcPoly(l0_target_, 1, 3) * x_dot_ +
-  //                  CalcPoly(l0_target_, 1, 4) * pitch_ + CalcPoly(l0_target_, 1, 5) * pitch_dot_) +
-  //                (right_theta_ - left_theta_) * theta_kp - (right_theta_dot_ - left_theta_dot_) * theta_kd;
-
-  // right_tau_(0) = -(CalcPoly(l0_target_, 0, 0) * right_theta_ + CalcPoly(l0_target_, 0, 1) * right_theta_dot_ +
-  //                   // CalcPoly(l0_target_, 0, 2) * (x_ - x_target_) + CalcPoly(l0_target_, 0, 3) * x_dot_ +
-  //                   CalcPoly(l0_target_, 0, 4) * pitch_ + CalcPoly(l0_target_, 0, 5) * pitch_dot_);
-  // right_tau_(1) = -(CalcPoly(l0_target_, 1, 0) * right_theta_ + CalcPoly(l0_target_, 1, 1) * right_theta_dot_ +
-  //                   // CalcPoly(l0_target_, 1, 2) * (x_ - x_target_) + CalcPoly(l0_target_, 1, 3) * x_dot_ +
-  //                   CalcPoly(l0_target_, 1, 4) * pitch_ + CalcPoly(l0_target_, 1, 5) * pitch_dot_) -
-  //                 (right_theta_ - left_theta_) * theta_kp + (right_theta_dot_ - left_theta_dot_) * theta_kd;
-
-  // left_tau_(0) = -(CalcPoly(left_leg_vmc_.l0(), 0, 0) * left_theta_ + CalcPoly(left_leg_vmc_.l0(), 0, 1) * left_theta_dot_ +
+  // left_tau_(0) = -(CalcPoly(left_leg_vmc_.l0(), 0, 0) * left_theta_ +
+  //                  CalcPoly(left_leg_vmc_.l0(), 0, 2) * (x_ - x_target_) + CalcPoly(left_leg_vmc_.l0(), 0, 3) * x_dot_ +
   //                  CalcPoly(left_leg_vmc_.l0(), 0, 4) * pitch_ + CalcPoly(left_leg_vmc_.l0(), 0, 5) * pitch_dot_);
-  // left_tau_(1) = -(CalcPoly(left_leg_vmc_.l0(), 1, 0) * left_theta_ + CalcPoly(left_leg_vmc_.l0(), 1, 1) * left_theta_dot_ +
+  // left_tau_(1) = -(CalcPoly(left_leg_vmc_.l0(), 1, 0) * left_theta_ +
+  //                  CalcPoly(left_leg_vmc_.l0(), 1, 2) * (x_ - x_target_) + CalcPoly(left_leg_vmc_.l0(), 1, 3) * x_dot_ +
   //                  CalcPoly(left_leg_vmc_.l0(), 1, 4) * pitch_ + CalcPoly(left_leg_vmc_.l0(), 1, 5) * pitch_dot_) +
   //                (right_theta_ - left_theta_) * theta_kp - (right_theta_dot_ - left_theta_dot_) * theta_kd;
 
-  // right_tau_(0) = -(CalcPoly(right_leg_vmc_.l0(), 0, 0) * right_theta_ + CalcPoly(right_leg_vmc_.l0(), 0, 1) * right_theta_dot_ +
+  // right_tau_(0) = -(CalcPoly(right_leg_vmc_.l0(), 0, 0) * right_theta_ +
+  //                   CalcPoly(right_leg_vmc_.l0(), 0, 2) * (x_ - x_target_) + CalcPoly(right_leg_vmc_.l0(), 0, 3) * x_dot_ +
   //                   CalcPoly(right_leg_vmc_.l0(), 0, 4) * pitch_ + CalcPoly(right_leg_vmc_.l0(), 0, 5) * pitch_dot_);
-  // right_tau_(1) = -(CalcPoly(right_leg_vmc_.l0(), 1, 0) * right_theta_ + CalcPoly(right_leg_vmc_.l0(), 1, 1) * right_theta_dot_ +
+  // right_tau_(1) = -(CalcPoly(right_leg_vmc_.l0(), 1, 0) * right_theta_ +
+  //                   CalcPoly(right_leg_vmc_.l0(), 1, 2) * (x_ - x_target_) + CalcPoly(right_leg_vmc_.l0(), 1, 3) * x_dot_ +
   //                   CalcPoly(right_leg_vmc_.l0(), 1, 4) * pitch_ + CalcPoly(right_leg_vmc_.l0(), 1, 5) * pitch_dot_) -
   //                 (right_theta_ - left_theta_) * theta_kp + (right_theta_dot_ - left_theta_dot_) * theta_kd;
 }
@@ -197,12 +192,12 @@ void Chassis::Update(const f32 left_leg_phi1, const f32 left_leg_phi4, const f32
   StateTrans();
   CalcTau();
 
-  left_l0_pid_.SetIout(80.f);
-  right_l0_pid_.SetIout(80.f);
+  left_l0_pid_.SetIout(70.f);
+  right_l0_pid_.SetIout(70.f);
   left_l0_pid_.Update(l0_target_, left_leg_vmc_.l0());
   right_l0_pid_.Update(l0_target_, right_leg_vmc_.l0());
-  left_force_ = left_l0_pid_.value();
-  right_force_ = right_l0_pid_.value();
+  left_force_ = left_l0_pid_.value() - (INS.Roll - 1.f) * roll_kp - (imu->gyro_y() - 0.f) * roll_kd;
+  right_force_ = right_l0_pid_.value() + (INS.Roll - 1.f) * roll_kp + (imu->gyro_y() - 0.f) * roll_kd;
 
   left_turn_pid_.Update(wz_, yaw_dot_);
   right_turn_pid_.Update(wz_, yaw_dot_);
@@ -232,6 +227,9 @@ extern "C" {
         remote_uart = new Serial(huart5, 18, stm32::UartMode::kNormal, stm32::UartMode::kDma);
         remote = new DR16(*remote_uart);
 
+        wheel_stand_pid = new PID(rm::modules::algorithm::PIDType::kPosition, 12.f, 0.f, 0.05f, 50.f, 30.f);
+        wheel_speed_pid = new PID(rm::modules::algorithm::PIDType::kPosition, 0.04f, 0.f, 0.04f, 100.f, 30.f);
+
         remote->Begin();
 
         left_joint_rs485->Begin();
@@ -249,22 +247,27 @@ extern "C" {
             chassis->A1_init_flag_ = false;
         }
 
-        chassis->SetPitch(-mahony_ahrs->euler_angle().pitch + 0.0035f);
+        chassis->SetPitch(-INS.Pitch * 3.14159 / 180.f); // 0.012f
         chassis->SetPitchDot(imu->gyro_x() - 0.003f);
 
         left_wheel_vel_filter.Update(left_wheel->vel());
         right_wheel_vel_filter.Update(right_wheel->vel());
 
-        chassis->SetXDot((left_wheel_vel_filter.value() - left_wheel_vel_filter.value()) / 2.f * 0.077f);
+        chassis->SetXDot((left_wheel_vel_filter.value() - right_wheel_vel_filter.value()) / 2.f * 0.077f);
         chassis->SetX(chassis->x() + chassis->x_dot() * 0.002f);
 
         chassis->SetYawDot(imu->gyro_z() - 0.00385f);
 
-        chassis->SetCtrlParam(0.f, 0.f, 0.f, 0.14f);
+        x_target_pre += (f32)remote->left_y() / 330.f / 2.f * 0.002f;
+
+        chassis->SetCtrlParam(x_target_pre, 0.f, 0.f, 0.18f);
         
 
         chassis->Update(lb_joint->pos(), lf_joint->pos(), rb_joint->pos(), rf_joint->pos(), lb_joint->vel(),
-                        lf_joint->vel(), rb_joint->vel(), rf_joint->vel());        
+                        lf_joint->vel(), rb_joint->vel(), rf_joint->vel());
+
+        wheel_speed_pid->Update(0.f, chassis->x_dot());
+        wheel_stand_pid->Update(wheel_speed_pid->value(), chassis->pitch());        
 
         if (remote->switch_l() != RcSwitchState::kMid) {
             lf_joint->SetTau(0.f);
@@ -274,23 +277,44 @@ extern "C" {
 
             left_wheel->SetTau(0.f);
             right_wheel->SetTau(0.f);
+
+            count = 0;
         }
         else {
-            lf_joint->SetTau(chassis->lf_tau() / 9.1f);
-            lb_joint->SetTau(chassis->lb_tau() / 9.1f);
-            rf_joint->SetTau(chassis->rf_tau() / 9.1f);
-            rb_joint->SetTau(chassis->rb_tau() / 9.1f);
+            if (count == 500) {
+              lf_joint->SetTau(chassis->lf_tau() / 9.1f);
+              lb_joint->SetTau(chassis->lb_tau() / 9.1f);
+              rf_joint->SetTau(chassis->rf_tau() / 9.1f);
+              rb_joint->SetTau(chassis->rb_tau() / 9.1f);
 
-            // lf_joint->SetTau(0.f);
-            // lb_joint->SetTau(0.f);
-            // rf_joint->SetTau(0.f);
-            // rb_joint->SetTau(0.f);
+              // lf_joint->SetTau(0.f);
+              // lb_joint->SetTau(0.f);
+              // rf_joint->SetTau(0.f);
+              // rb_joint->SetTau(0.f);
 
-            left_wheel->SetTau(chassis->left_wheel_tau() / 6.33f);
-            right_wheel->SetTau(chassis->right_wheel_tau() / 6.33f);
+              left_wheel->SetTau(chassis->left_wheel_tau() / 6.33f);
+              right_wheel->SetTau(chassis->right_wheel_tau() / 6.33f);
 
-            // left_wheel->SetTau(0.f);
-            // right_wheel->SetTau(0.f);
+              // left_wheel->SetTau(0.f);
+              // right_wheel->SetTau(0.f);
+            }
+            else {
+              lf_joint->SetTau(0.f);
+              lb_joint->SetTau(0.f);
+              rf_joint->SetTau(0.f);
+              rb_joint->SetTau(0.f);
+
+              // left_wheel->SetTau(wheel_stand_pid->value()/6.33f);
+              // right_wheel->SetTau(-wheel_stand_pid->value()/6.33f);
+
+              left_wheel->SetTau(chassis->left_wheel_tau() / 6.33f);
+              right_wheel->SetTau(chassis->right_wheel_tau() / 6.33f);
+
+              // left_wheel->SetTau(0.f);
+              // right_wheel->SetTau(0.f);
+
+              count++;
+            }
         }
 
       lf_joint->SendCommend();

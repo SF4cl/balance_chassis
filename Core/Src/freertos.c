@@ -21,6 +21,7 @@
 #include "FreeRTOS.h"
 #include "bsp_dwt.h"
 #include "cmsis_os2.h"
+#include "stm32h723xx.h"
 #include "task.h"
 #include "main.h"
 #include "cmsis_os.h"
@@ -93,6 +94,11 @@ const osThreadAttr_t remote_task_attributes = {
   .stack_size = sizeof(remote_taskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
+/* Definitions for imu_data */
+osMessageQueueId_t imu_dataHandle;
+const osMessageQueueAttr_t imu_data_attributes = {
+  .name = "imu_data"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -144,6 +150,10 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of imu_data */
+  imu_dataHandle = osMessageQueueNew (16, sizeof(uint16_t), &imu_data_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -210,12 +220,10 @@ void imu_task_entry(void *argument)
     imu_start = DWT_GetTimeline_ms();
 
     ImuUpdate();
-
     pwm_out = GetPwmOut();
-
     htim3.Instance->CCR4 = pwm_out;
 
-    vTaskDelay(2);
+    vTaskDelay(1);
 
     imu_dt = DWT_GetTimeline_ms() - imu_start;
   }
@@ -241,15 +249,17 @@ void chassis_task_entry(void *argument)
   {
     chassis_start = DWT_GetTimeline_ms();
 
-    vTaskSuspendAll();
+    // vTaskSuspendAll();
     
     ChassisUpdate();
     
-    xTaskResumeAll();
+    // xTaskResumeAll();
+
+    chassis_dt = DWT_GetTimeline_ms() - chassis_start;
 
     vTaskDelay(2);
 
-    chassis_dt = DWT_GetTimeline_ms() - chassis_start;
+    // chassis_dt = DWT_GetTimeline_ms() - chassis_start;
   }
   /* USER CODE END chassis_task_entry */
 }

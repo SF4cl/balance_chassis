@@ -1,34 +1,13 @@
-/**
- *******************************************************************************
- * @file      : bsp_dwt.c
- * @brief     :
- * @history   :
- *  Version     Date            Author          Note
- *  V0.9.0      yyyy-mm-dd      <author>        1. <note>
- *******************************************************************************
- * @attention :
- *******************************************************************************
- *  Copyright (c) 2023 Reborn Team, USTB.
- *  All Rights Reserved.
- *******************************************************************************
- */
-/* Includes ------------------------------------------------------------------*/
+
 #include "bsp_dwt.h"
 
 #include "cmsis_os.h"
 
-/* Private macro -------------------------------------------------------------*/
-/* Private constants ---------------------------------------------------------*/
-/* Private types -------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
 static DWT_Time_t SysTime;
 static uint32_t CPU_FREQ_Hz, CPU_FREQ_Hz_ms, CPU_FREQ_Hz_us;
 static uint32_t CYCCNT_RountCount;
 static uint32_t CYCCNT_LAST;
 static uint64_t CYCCNT64;
-
-/* External variables --------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
 
 /**
  * @brief 私有函数,用于检查DWT CYCCNT寄存器是否溢出,并更新CYCCNT_RountCount

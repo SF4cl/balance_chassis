@@ -1,18 +1,4 @@
-/** 
- *******************************************************************************
- * @file      : bsp_dwt.h
- * @brief     : 
- * @history   :
- *  Version     Date            Author          Note
- *  V0.9.0      yyyy-mm-dd      <author>        1. <note>
- *******************************************************************************
- * @attention :
- *******************************************************************************
- *  Copyright (c) 2023 Reborn Team, USTB.
- *  All Rights Reserved.
- *******************************************************************************
- */
-/* Define to prevent recursive inclusion -------------------------------------*/
+
 #ifndef __BSP_DWT_H_
 #define __BSP_DWT_H_
 
@@ -20,22 +6,15 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stdint.h"
 
-/* Exported macro ------------------------------------------------------------*/
-/* Exported constants --------------------------------------------------------*/
-/* Exported types ------------------------------------------------------------*/
 typedef struct
 {
     uint32_t s;
     uint16_t ms;
     uint16_t us;
 } DWT_Time_t;
-
-/* Exported variables --------------------------------------------------------*/
-/* Exported function prototypes ----------------------------------------------*/
 
 /**
  * @brief 初始化DWT,传入参数为CPU频率,单位MHz
@@ -101,4 +80,4 @@ void DWT_SysTimeUpdate(void);
 }
 #endif
 
-#endif /* __FILE_H_ */
+#endif
