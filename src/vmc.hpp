@@ -4,7 +4,6 @@
 #include "librm.hpp"
 
 #include "arm_math.h"
-#include "Eigen/Dense"
 
 using namespace rm;
 
@@ -25,7 +24,10 @@ class Vmc {
   [[nodiscard]] const f32 yc() { return this->yc_; }
   [[nodiscard]] const f32 xc_dot() { return this->xc_dot_; }
   [[nodiscard]] const f32 yc_dot() { return this->yc_dot_; }
-  [[nodiscard]] const Eigen::MatrixXf jacobi() { return this->jacobi_; }
+  [[nodiscard]] const f32 jacobi_00() { return this->jacobi_00_; }
+  [[nodiscard]] const f32 jacobi_01() { return this->jacobi_01_; }
+  [[nodiscard]] const f32 jacobi_10() { return this->jacobi_10_; }
+  [[nodiscard]] const f32 jacobi_11() { return this->jacobi_11_; }
 
  private:
   f32 phi1_, phi4_;
@@ -49,7 +51,7 @@ class Vmc {
   f32 l5_;
 
   // vmc相关
-  Eigen::MatrixXf jacobi_;
+  f32 jacobi_00_, jacobi_01_, jacobi_10_, jacobi_11_;
 };
 
 #endif
