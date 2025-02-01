@@ -43,10 +43,10 @@ f32 x_target_pre = 0.f;
 Chassis::Chassis()
     : left_leg_vmc_(0.12f, 0.25f, 0.15f),
       right_leg_vmc_(0.12f, 0.25f, 0.15f),
-      left_l0_pid_(1500.f, 400.f, 20000.f, 360.f, 100.f),
-      right_l0_pid_(1500.f, 400.f, 20000.f, 360.f, 100.f),
-      left_turn_pid_(10.f, 0.0f, 6.f, 10.f, 0.f),
-      right_turn_pid_(10.f, 0.0f, 6.f, 10.f, 0.f),
+      left_l0_pid_(1100.f, 1000.f, 25000.f, 360.f, 130.f),
+      right_l0_pid_(1100.f, 1000.f, 25000.f, 360.f, 130.f),
+      left_turn_pid_(3.f, 0.0f, 0.5f, 10.f, 0.f),
+      right_turn_pid_(3.f, 0.0f, 0.5f, 10.f, 0.f),
       lf_pos_filter_(1.f / 500.f, 0.007f),
       lb_pos_filter_(1.f / 500.f, 0.007f),
       rf_pos_filter_(1.f / 500.f, 0.007f),
@@ -65,10 +65,10 @@ Chassis::Chassis()
 }
 
 void Chassis::LegPosTrans() {
-  left_leg_phi1_ = lb_pos_filter_.value() - lb_init_angle_ + 3.14159f + 0.3996f;
-  left_leg_phi4_ = lf_pos_filter_.value() - lf_init_angle_ - 0.3996f;
-  right_leg_phi1_ = -rb_pos_filter_.value() + rb_init_angle_ + 3.14159f + 0.3996f;
-  right_leg_phi4_ = -rf_pos_filter_.value() + rf_init_angle_ - 0.3996f;
+  left_leg_phi1_ = lb_pos_filter_.value() - lb_init_angle_ + 3.14159f + 0.3293f;
+  left_leg_phi4_ = lf_pos_filter_.value() - lf_init_angle_ - 0.3293f;
+  right_leg_phi1_ = -rb_pos_filter_.value() + rb_init_angle_ + 3.14159f + 0.3293f;
+  right_leg_phi4_ = -rf_pos_filter_.value() + rf_init_angle_ - 0.3293f;
 
   left_leg_w_phi1_ = lb_spd_filter_.value();
   left_leg_w_phi4_ = lf_spd_filter_.value();
@@ -102,11 +102,11 @@ void Chassis::StateTrans() {
 }
 
 void Chassis::Visual2Real() {
-  lf_tau_ = left_leg_vmc_.jacobi()(0, 0) * left_force_ + left_leg_vmc_.jacobi()(0, 1) * (-left_tau_(1));
-  lb_tau_ = left_leg_vmc_.jacobi()(1, 0) * left_force_ + left_leg_vmc_.jacobi()(1, 1) * (-left_tau_(1));
+  lf_tau_ = left_leg_vmc_.jacobi_00() * left_force_ + left_leg_vmc_.jacobi_01() * (-left_tau_(1));
+  lb_tau_ = left_leg_vmc_.jacobi_10() * left_force_ + left_leg_vmc_.jacobi_11() * (-left_tau_(1));
 
-  rf_tau_ = right_leg_vmc_.jacobi()(0, 0) * right_force_ + right_leg_vmc_.jacobi()(0, 1) * (-right_tau_(1));
-  rb_tau_ = right_leg_vmc_.jacobi()(1, 0) * right_force_ + right_leg_vmc_.jacobi()(1, 1) * (-right_tau_(1));
+  rf_tau_ = right_leg_vmc_.jacobi_00() * right_force_ + right_leg_vmc_.jacobi_01() * (-right_tau_(1));
+  rb_tau_ = right_leg_vmc_.jacobi_10() * right_force_ + right_leg_vmc_.jacobi_11() * (-right_tau_(1));
 
   // lf_tau_ = left_leg_vmc_.jacobi()(0, 0) * left_force_;
   // lb_tau_ = left_leg_vmc_.jacobi()(1, 0) * left_force_;
@@ -192,12 +192,12 @@ void Chassis::Update(const f32 left_leg_phi1, const f32 left_leg_phi4, const f32
   StateTrans();
   CalcTau();
 
-  left_l0_pid_.SetIout(70.f);
-  right_l0_pid_.SetIout(70.f);
+  left_l0_pid_.SetIout(55.f);
+  right_l0_pid_.SetIout(55.f);
   left_l0_pid_.Update(l0_target_, left_leg_vmc_.l0());
   right_l0_pid_.Update(l0_target_, right_leg_vmc_.l0());
-  left_force_ = left_l0_pid_.value() - (INS.Roll - 1.f) * roll_kp - (imu->gyro_y() - 0.f) * roll_kd;
-  right_force_ = right_l0_pid_.value() + (INS.Roll - 1.f) * roll_kp + (imu->gyro_y() - 0.f) * roll_kd;
+  left_force_ = left_l0_pid_.value() - (INS.Roll - 0.f) * roll_kp - (imu->gyro_y() - 0.f) * roll_kd;
+  right_force_ = right_l0_pid_.value() + (INS.Roll - 0.f) * roll_kp + (imu->gyro_y() - 0.f) * roll_kd;
 
   left_turn_pid_.Update(wz_, yaw_dot_);
   right_turn_pid_.Update(wz_, yaw_dot_);
@@ -247,7 +247,7 @@ extern "C" {
             chassis->A1_init_flag_ = false;
         }
 
-        chassis->SetPitch(-INS.Pitch * 3.14159 / 180.f); // 0.012f
+        chassis->SetPitch(-INS.Pitch * 3.14159 / 180.f);
         chassis->SetPitchDot(imu->gyro_x() - 0.003f);
 
         left_wheel_vel_filter.Update(left_wheel->vel());
@@ -256,11 +256,11 @@ extern "C" {
         chassis->SetXDot((left_wheel_vel_filter.value() - right_wheel_vel_filter.value()) / 2.f * 0.077f);
         chassis->SetX(chassis->x() + chassis->x_dot() * 0.002f);
 
-        chassis->SetYawDot(imu->gyro_z() - 0.00385f);
+        chassis->SetYawDot(imu->gyro_z() - 0.004f);
 
-        x_target_pre += (f32)remote->left_y() / 330.f / 2.f * 0.002f;
+        x_target_pre += (f32)remote->right_y() / 330.f / 2.f * 0.003f;
 
-        chassis->SetCtrlParam(x_target_pre, 0.f, 0.f, 0.18f);
+        chassis->SetCtrlParam(x_target_pre, 0.f, -(f32)remote->left_x() / 330.f / 1.f, 0.20f);
         
 
         chassis->Update(lb_joint->pos(), lf_joint->pos(), rb_joint->pos(), rf_joint->pos(), lb_joint->vel(),
