@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-extern void TestQuaternionEkfAhrs_Init();
-extern void TestQuaternionEkfAhrs_Update();
+extern void ImuInit();
+extern void ImuUpdate();
 
 #ifdef __cplusplus
 }
