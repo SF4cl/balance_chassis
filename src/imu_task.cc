@@ -26,12 +26,10 @@ f32 pitch_angle;
 f32 roll_angle;
 
 void ImuInit() {
-    imu = std::make_unique<BMI088>(hspi2, ACC_CS_GPIO_Port, ACC_CS_Pin, GYRO_CS_GPIO_Port, GYRO_CS_Pin);  // 传入 nullptr 因为我们不实际使用它
+    imu = std::make_unique<BMI088>(hspi2, ACC_CS_GPIO_Port, ACC_CS_Pin, GYRO_CS_GPIO_Port, GYRO_CS_Pin);
 
-    // 初始四元数: w=1, x=0, y=0, z=0 (对应欧拉角 yaw=pitch=roll=0)
-    rm::f32 init_q[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+    f32 init_q[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 
-    // 初始化滤波器
     // 构造参数：采样频率(Hz), 初始四元数, 过程噪声(Q1), 过程噪声(Q2), 测量噪声(R), 渐消因子(lambda), 低通滤波系数(lpf)
     my_ahrs = std::make_unique<QuaternionEkfAhrs>(1000.0f, init_q, 10.0f, 0.001f, 1000000.0f, 0.9996f, 0.0f);
 }
