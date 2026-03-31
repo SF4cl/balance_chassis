@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "test.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -198,9 +198,11 @@ void StartDefaultTask(void *argument)
 void imu_task_entry(void *argument)
 {
   /* USER CODE BEGIN imu_task_entry */
+  TestQuaternionEkfAhrs_Init();
   /* Infinite loop */
   for(;;)
   {
+    TestQuaternionEkfAhrs_Update();
     osDelay(1);
   }
   /* USER CODE END imu_task_entry */
