@@ -1,0 +1,8 @@
+//
+// Created by SF4 on 2026/4/1.
+//
+
+#ifndef BALANCE_CHASSIS_FSM_HPP
+#define BALANCE_CHASSIS_FSM_HPP
+
+#endif //BALANCE_CHASSIS_FSM_HPP
